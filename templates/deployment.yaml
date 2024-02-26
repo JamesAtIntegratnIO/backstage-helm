@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "backstage.fullname" . }}
+  namespace: backstage
+  labels:
+    {{- include "backstage.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "backstage.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "backstage.name" . }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      containers:
+        - name: backstage
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: {{ .Values.ports[0].name }}
+              containerPort: {{ .Values.ports[0].containerPort }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.envFrom[0].secretRef.name }}
+          volumeMounts:
+            {{- range .Values.volumeMounts }}
+            - name: {{ .name }}
+              mountPath: {{ .mountPath }}
+              subPath: {{ .subPath }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        {{- range .Values.volumes }}
+        - name: {{ .name }}
+          secret:
+            secretName: {{ .secret.secretName }}
+        {{- end }}

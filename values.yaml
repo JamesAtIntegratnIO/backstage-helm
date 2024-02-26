@@ -1,0 +1,95 @@
+# Deployment
+replicaCount: 1
+
+image:
+  repository: ghcr.io/jamesatintegratnio/backstage
+  tag: latest
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+ports:
+  - name: http
+    containerPort: 7007
+
+envFrom:
+  - secretRef:
+      name: backstage-secrets
+
+volumeMounts:
+  - name: org-yaml
+    mountPath: /app/users.yaml
+    subPath: org.yaml
+  - name: app-config
+    mountPath: /app/app-config.yaml
+    subPath: app-config.yaml
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+  limits:
+    cpu: 1500m
+    memory: 2048Mi
+
+volumes:
+  - name: org-yaml
+    secret:
+      secretName: backstage-org-yaml
+  - name: app-config
+    secret:
+      secretName: backstage-app-config
+
+# Service
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: http
+
+# Ingress
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: backstage.k8s.integratn.tech
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - backstage.k8s.integratn.tech
+      secretName: backstage-tls
+
+# Service Account
+serviceAccount:
+  create: true
+  name: backstage
+  annotations:
+    backstage.io/kubernetes-service-account: "backstage"
+
+clusterRole:
+  create: true
+  name: backstage-read-only
+  rules:
+    - apiGroups: [""]
+      resources: ["pods", "pods/log"]
+      verbs: ["get", "list"]
+    - apiGroups: ["*"]
+      resources: ["pods", "pods/log", "configmaps", "services", "deployments", "replicasets", "horizontalpodautoscalers", "ingresses", "statefulsets", "limitranges", "daemonsets"]
+      verbs: ["get", "list", "watch"]
+    - apiGroups: ["batch"]
+      resources: ["jobs", "cronjobs"]
+      verbs: ["get", "list", "watch"]
+    - apiGroups: ["metrics.k8s.io"]
+      resources: ["pods"]
+      verbs: ["get", "list"]
+
+clusterRoleBinding:
+  create: true
+  name: backstage-read-only
